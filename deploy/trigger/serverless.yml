@@ -1,0 +1,55 @@
+service: s3-lambda-trigger-snippet
+
+provider:
+  name: aws
+  runtime: python3.7
+  role:
+    "Fn::GetAtt":
+      - "TriggerRole"
+      - "Arn"
+package:
+  artifact: ../../target/trigger.zip
+
+functions:
+  trigger:
+    handler: trigger.lambda_handler
+
+resources:
+  Outputs:
+    TriggerLambdaFunction:
+      Value:
+        Fn::Join:
+          - ":"
+          - - "arn:aws:lambda"
+            - Ref: "AWS::Region"
+            - Ref: "AWS::AccountId"
+            - "function"
+            - Ref: TriggerLambdaFunction
+      Export:
+        Name: s3-trigger-function
+  Resources:
+    TriggerRole:
+      Type: AWS::IAM::Role
+      Properties:
+        AssumeRolePolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+            - Effect: "Allow"
+              Principal:
+                Service:
+                  - "lambda.amazonaws.com"
+              Action:
+                - "sts:AssumeRole"
+        ManagedPolicyArns:
+          - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+          - arn:aws:iam::aws:policy/AWSXrayWriteOnlyAccess
+        Path: "/"
+        Policies:
+          - PolicyName: "root"
+            PolicyDocument:
+              Version: "2012-10-17"
+              Statement:
+                - Effect: "Allow"
+                  Action:
+                    - "s3:*"
+                  Resource: "*"

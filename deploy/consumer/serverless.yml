@@ -1,0 +1,78 @@
+service: s3-lambda-snippet-4
+
+provider:
+  name: aws
+  runtime: python3.7
+  role:
+    "Fn::GetAtt":
+      - "LambdaRole"
+      - "Arn"
+
+package:
+  artifact: ../../target/consumer.zip
+
+functions:
+  lambda:
+    handler: lambda.lambda_handler
+
+resources:
+  Resources:
+    LambdaRole:
+      Type: AWS::IAM::Role
+      Properties:
+        AssumeRolePolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+            - Effect: "Allow"
+              Principal:
+                Service:
+                  - "lambda.amazonaws.com"
+              Action:
+                - "sts:AssumeRole"
+        ManagedPolicyArns:
+          - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+          - arn:aws:iam::aws:policy/AWSXrayWriteOnlyAccess
+        Path: "/"
+        Policies:
+          - PolicyName: "root"
+            PolicyDocument:
+              Version: "2012-10-17"
+              Statement:
+                - Effect: "Allow"
+                  Action:
+                    - "s3:*"
+                  Resource: "*"
+    LambdaPermission:
+      Type: AWS::Lambda::Permission
+      Properties:
+        Action: lambda:InvokeFunction
+        FunctionName:
+          Fn::GetAtt:
+            - LambdaLambdaFunction
+            - Arn
+        Principal: s3.amazonaws.com
+        SourceArn:
+          Fn::Join:
+            - ""
+            - - "arn:aws:s3:::"
+              - ${env:BUCKET_NAME}
+    TriggeredFunction:
+      DependsOn: LambdaPermission
+      Type: Custom::Trigger
+      Properties:
+        ServiceToken:
+          "Fn::ImportValue": "s3-trigger-function"
+        BucketName: ${env:BUCKET_NAME}
+        LambdaFunctionConfigurations:
+          - Id: lambdaNotification
+            LambdaFunctionArn:
+              Fn::GetAtt:
+                - LambdaLambdaFunction
+                - Arn
+            Events:
+              - s3:ObjectCreated:Put
+            Filter:
+              Key:
+                FilterRules:
+                  - Name: Suffix
+                    Value: test/data
